@@ -58,25 +58,8 @@ if __name__ == "__main__":
 
     data = raw.select(from_json(col("value").cast("string"), schema).alias("data"))
 
-    def check_flight_conditions(wind_speed, visibility, rain, storm, cloud_below_200m, temperature, sunrise, sunset,
-                                current_time):
-        return (
-            wind_speed < 4 and
-            visibility >= 2000 and
-            not rain and
-            not storm and
-            not cloud_below_200m and
-            temperature < 26 and
-            (
-                (current_time >= sunrise and current_time <= sunrise_plus_3h) or
-                (current_time >= sunset_minus_3h and current_time <= sunset)
-            )
-        )
-
-    
+    # Final values    
     wind_speed = data.select(col("data.wind.speed")).alias("wind_speed")
-
-    
     visibility = data.select(col("data.visibility")).alias("visibility")
     rain = data.select(
         (array_contains(col("data.weather.main"), "Rain") |
@@ -94,17 +77,6 @@ if __name__ == "__main__":
     cloud_below_200m = data.select(
         expr("size(filter(array(data.clouds.all), all -> all < 200)) > 0").alias("cloud_below_200m")
     )
-
-    can_fly = check_flight_conditions(wind_speed = wind_speed[0],
-                                      visibility[0], 
-                                      rain = tain[0],
-                                      storm = storm[0],
-                                      cloud_below_200m = cloud_below_200m[0],
-                                      temperature = temperature[0], 
-                                      sunrise = sunrise[0],
-                                      sunset = sunset[0],
-                                      current_time = current_time[0])
-
     
     # Start the streaming query
     query = wind_speed.writeStream.outputMode("append").format("console").start()
