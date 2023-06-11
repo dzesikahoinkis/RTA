@@ -1,6 +1,3 @@
-"""Generates a stream to Kafka from a time series csv file.
-"""
-
 import argparse
 import csv
 import json
@@ -27,7 +24,7 @@ def get_weather_data(city):
     return data
 
 
-def main():
+def main(city):
 
     conf = {'bootstrap.servers': "broker:9092",
             'client.id': socket.gethostname()}
@@ -37,7 +34,6 @@ def main():
     while True:
 
         try:
-            city = 'Warsaw'  # Zastąp wartością docelowego miasta
             weather_data = get_weather_data(city)
             jresult = json.dumps(weather_data)
 

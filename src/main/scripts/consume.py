@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, current_timestamp, expr, filter, from_json
+from pyspark.sql.functions import col, current_timestamp, expr, filter, from_json, array_contains
 from pyspark.sql.types import ArrayType, DoubleType, IntegerType, LongType, StringType, StructField, StructType, BooleanType
 
 if __name__ == "__main__":
@@ -58,24 +58,6 @@ if __name__ == "__main__":
 
     data = raw.select(from_json(col("value").cast("string"), schema).alias("data"))
 
-    wind_speed = data.select(col("data.wind.speed").alias("wind_speed"))
-    visibility = data.select(col("data.visibility").alias("visibility"))
-    rain = data.select(
-        expr("array_contains(data.weather.main, 'Rain') OR array_contains(data.weather.main, 'Snow')").alias("rain")
-    )
-    storm = data.select(
-        expr("exists(data.weather, weather -> weather.main == 'Thunderstorm')").alias("storm")
-    )
-    temperature = data.select(col("data.main.temp").alias("temperature"))
-    sunrise = data.select(col("data.sys.sunrise").alias("sunrise"))
-    sunset = data.select(col("data.sys.sunset").alias("sunset"))
-    current_time = current_timestamp().alias("current_time")
-
-    # Check for cloud base below 200m
-    cloud_below_200m = data.select(
-        expr("size(filter(data.clouds.all, all -> all < 200)) > 0").alias("cloud_below_200m")
-    )
-
     def check_flight_conditions(wind_speed, visibility, rain, storm, cloud_below_200m, temperature, sunrise, sunset,
                                 current_time):
         return (
@@ -91,30 +73,39 @@ if __name__ == "__main__":
             )
         )
 
-    # Apply the flight condition checks
-    flight_conditions = data.select(
-        wind_speed,
-        visibility,
-        rain,
-        storm,
-        cloud_below_200m,
-        temperature,
-        sunrise,
-        sunset,
-        current_time,
-        check_flight_conditions(
-            col("wind_speed.wind_speed"),
-            col("visibility.visibility"),
-            col("rain.rain"),
-            col("storm.storm"),
-            col("cloud_below_200m.cloud_below_200m"),
-            col("temperature.temperature"),
-            col("sunrise.sunrise"),
-            col("sunset.sunset"),
-            col("current_time.current_time")
-        ).alias("flight_conditions")
+    
+    wind_speed = data.select(col("data.wind.speed")).alias("wind_speed")
+
+    
+    visibility = data.select(col("data.visibility")).alias("visibility")
+    rain = data.select(
+        (array_contains(col("data.weather.main"), "Rain") |
+         array_contains(col("data.weather.main"), "Snow")).alias("rain")
+    )
+    storm = data.select(
+        expr("exists(data.weather, weather -> weather.main == 'Thunderstorm')").alias("storm")
+    )
+    temperature = data.select(col("data.main.temp")).alias("temperature")
+    sunrise = data.select(col("data.sys.sunrise")).alias("sunrise")
+    sunset = data.select(col("data.sys.sunset")).alias("sunset")
+    current_time = current_timestamp().alias("current_time")
+    
+    # Check for cloud base below 200m
+    cloud_below_200m = data.select(
+        expr("size(filter(array(data.clouds.all), all -> all < 200)) > 0").alias("cloud_below_200m")
     )
 
+    can_fly = check_flight_conditions(wind_speed = wind_speed[0],
+                                      visibility[0], 
+                                      rain = tain[0],
+                                      storm = storm[0],
+                                      cloud_below_200m = cloud_below_200m[0],
+                                      temperature = temperature[0], 
+                                      sunrise = sunrise[0],
+                                      sunset = sunset[0],
+                                      current_time = current_time[0])
+
+    
     # Start the streaming query
-    query = flight_conditions.writeStream.outputMode("append").format("console").start()
+    query = wind_speed.writeStream.outputMode("append").format("console").start()
     query.awaitTermination()
